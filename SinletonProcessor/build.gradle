@@ -4,6 +4,7 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'com.squareup:javapoet:1.8.0'
     implementation 'com.google.guava:guava:21.0'
+    compile group: 'com.google.auto.service', name: 'auto-service', version: '1.0-rc1'
     implementation project(':singleton-annotation')
 }
 

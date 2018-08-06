@@ -1,5 +1,6 @@
 package com.zhaldak.sinletonprocessor;
 
+import com.google.auto.service.AutoService;
 import com.google.common.collect.ImmutableSet;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
@@ -10,6 +11,7 @@ import com.squareup.javapoet.TypeSpec;
 import com.zhaldak.singleton_annotation.Singleton;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -17,6 +19,7 @@ import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
@@ -30,6 +33,7 @@ import javax.tools.Diagnostic;
  * Created by Lileia on 29.07.2018.
  */
 
+@AutoService(Processor.class)
 public class SingletonProcessor extends AbstractProcessor {
 
     public static final String METHOD_SUFFIX = "Instance";
@@ -45,6 +49,7 @@ public class SingletonProcessor extends AbstractProcessor {
         filer = processingEnv.getFiler();
         messager = processingEnv.getMessager();
         elements = processingEnv.getElementUtils();
+        singletonAnnotatedClasses = new HashMap<>();
     }
 
     @Override
@@ -101,9 +106,9 @@ public class SingletonProcessor extends AbstractProcessor {
                     .addModifiers(Modifier.FINAL, Modifier.PUBLIC)
                     .returns(clazz)
                     .beginControlFlow("if ($N == null)", instanceField)
-                    .addStatement("$N = new $S()")
+                    .addStatement("$N = new $S()", instanceField, className)
                     .endControlFlow()
-                    .addStatement("return %N", instanceField)
+                    .addStatement("return $N", instanceField)
                     .build();
 
             singletonsClass.addField(instanceField).addMethod(instanceMethod);
@@ -113,12 +118,12 @@ public class SingletonProcessor extends AbstractProcessor {
         try {
             JavaFile.builder("com.zhaldak.annotationtryout",
                     singletonsClass.build()).build().writeTo(filer);
-            throw new RuntimeException("BOOM");
         } catch (IOException e) {
             messager.printMessage(Diagnostic.Kind.ERROR, e.getMessage());
             return true;
         }
 
+        return true;
 
     }
 }
