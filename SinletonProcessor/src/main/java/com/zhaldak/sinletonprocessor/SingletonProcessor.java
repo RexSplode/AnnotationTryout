@@ -6,7 +6,6 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.zhaldak.singleton_annotation.Singleton;
 
@@ -24,6 +23,7 @@ import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
@@ -66,19 +66,29 @@ public class SingletonProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         for (Element element : roundEnv.getElementsAnnotatedWith(Singleton.class)) {
+            String name = element.getSimpleName().toString();
 
             if (element.getKind() != ElementKind.CLASS) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "Singleton can be applied only to classes");
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                        "Singleton can be applied only to classes: " + name);
                 return true;
             }
 
             TypeElement typeElement = (TypeElement) element;
 
             if (typeElement.getModifiers().contains(Modifier.ABSTRACT)) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "Singleton cannot be applied to abstract classes");
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                        "Singleton cannot be applied to abstract class: " + name);
                 return true;
 
             }
+
+            if (!hasPublicConstructorNoArgs(typeElement)) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                        "Empty public constructor should be provided: " + name);
+                return true;
+            }
+
             singletonAnnotatedClasses.put(typeElement.getSimpleName().toString(),
                     elements.getPackageOf(typeElement).getQualifiedName().toString());
 
@@ -87,43 +97,61 @@ public class SingletonProcessor extends AbstractProcessor {
                 TypeSpec.classBuilder("Singletons")
                         .addModifiers(Modifier.PUBLIC, Modifier.FINAL);
 
-        for (Map.Entry<String, String> entry : singletonAnnotatedClasses.entrySet()) {
-            String className = entry.getKey();
-            String packageName = entry.getValue();
+        if (singletonAnnotatedClasses.size() != 0) {
 
-            ClassName fullName = ClassName.get(packageName, className);
-            String lowercaseClassName = className.substring(0, 1).toLowerCase() + className.substring(1);
-            Class<?> clazz = elements.getTypeElement(fullName.toString()).getClass();
+            for (Map.Entry<String, String> entry : singletonAnnotatedClasses.entrySet()) {
+                String className = entry.getKey();
+                String packageName = entry.getValue();
 
-
-            FieldSpec instanceField = FieldSpec.builder(clazz, lowercaseClassName + FIELD_SUFFIX)
-                    .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                    .build();
+                ClassName fullName = ClassName.get(packageName, className);
+                String lowercaseClassName = className.substring(0, 1).toLowerCase() + className.substring(1);
 
 
-            MethodSpec instanceMethod = MethodSpec
-                    .methodBuilder(className + METHOD_SUFFIX)
-                    .addModifiers(Modifier.FINAL, Modifier.PUBLIC)
-                    .returns(clazz)
-                    .beginControlFlow("if ($N == null)", instanceField)
-                    .addStatement("$N = new $S()", instanceField, className)
-                    .endControlFlow()
-                    .addStatement("return $N", instanceField)
-                    .build();
+                FieldSpec instanceField = FieldSpec.builder(fullName, lowercaseClassName + FIELD_SUFFIX)
+                        .addModifiers(Modifier.PRIVATE)
+                        .build();
 
-            singletonsClass.addField(instanceField).addMethod(instanceMethod);
 
-        }
+                MethodSpec instanceMethod = MethodSpec
+                        .methodBuilder(className + METHOD_SUFFIX)
+                        .addModifiers(Modifier.FINAL, Modifier.PUBLIC)
+                        .returns(fullName)
+                        .beginControlFlow("if ($N == null)", instanceField)
+                        .addStatement("$N = new $T()", instanceField, fullName)
+                        .endControlFlow()
+                        .addStatement("return $N", instanceField)
+                        .build();
 
-        try {
-            JavaFile.builder("com.zhaldak.annotationtryout",
-                    singletonsClass.build()).build().writeTo(filer);
-        } catch (IOException e) {
-            messager.printMessage(Diagnostic.Kind.ERROR, e.getMessage());
+                singletonsClass.addField(instanceField).addMethod(instanceMethod);
+
+            }
+            singletonAnnotatedClasses.clear();
+
+            try {
+                JavaFile.builder("com.zhaldak.annotationtryout",
+                        singletonsClass.build()).build().writeTo(filer);
+            } catch (IOException e) {
+                messager.printMessage(Diagnostic.Kind.ERROR, e.getMessage());
+                return false;
+            }
+
             return true;
+
         }
-
         return true;
+    }
 
+    private boolean hasPublicConstructorNoArgs(TypeElement typeElement) {
+        for (Element enclosed : typeElement.getEnclosedElements()) {
+            if (enclosed.getKind() == ElementKind.CONSTRUCTOR) {
+                ExecutableElement constructorElement = (ExecutableElement) enclosed;
+
+                if (constructorElement.getParameters().size() == 0
+                        && constructorElement.getModifiers().contains(Modifier.PUBLIC)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

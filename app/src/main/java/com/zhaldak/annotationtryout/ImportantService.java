@@ -7,4 +7,6 @@ import com.zhaldak.singleton_annotation.Singleton;
  */
 @Singleton
 class ImportantService {
+
+   public ImportantService() {}
 }
