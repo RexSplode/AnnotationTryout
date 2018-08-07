@@ -104,10 +104,11 @@ public class SingletonProcessor extends AbstractProcessor {
                 String packageName = entry.getValue();
 
                 ClassName fullName = ClassName.get(packageName, className);
-                String lowercaseClassName = className.substring(0, 1).toLowerCase() + className.substring(1);
+                String lowercaseFirstLetterName = className.substring(0, 1).toLowerCase()
+                        + className.substring(1);
 
 
-                FieldSpec instanceField = FieldSpec.builder(fullName, lowercaseClassName + FIELD_SUFFIX)
+                FieldSpec instanceField = FieldSpec.builder(fullName, lowercaseFirstLetterName + FIELD_SUFFIX)
                         .addModifiers(Modifier.PRIVATE)
                         .build();
 
